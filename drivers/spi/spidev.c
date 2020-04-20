@@ -727,9 +727,9 @@ static int spidev_probe(struct spi_device *spi)
 	unsigned long		minor;
 
 	/*
-	 * spidev should never be referenced in DT without a specific
-	 * compatible string, it is a Linux implementation thing
-	 * rather than a description of the hardware.
+	 * spidev should never be referenced in DT as 'spidev' directly without  
+	 * a specific compatible string such as 'ge,achc', it is a Linux  
+	 * implementation thing rather than a description of the hardware.
 	 */
 	WARN(spi->dev.of_node &&
 	     of_device_is_compatible(spi->dev.of_node, "spidev"),
