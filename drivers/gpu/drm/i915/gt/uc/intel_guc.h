@@ -33,7 +33,6 @@ struct intel_guc {
 	unsigned int msg_enabled_mask;
 
 	struct {
-		bool enabled;
 		void (*reset)(struct intel_guc *guc);
 		void (*enable)(struct intel_guc *guc);
 		void (*disable)(struct intel_guc *guc);
@@ -46,13 +45,6 @@ struct intel_guc {
 
 	struct i915_vma *stage_desc_pool;
 	void *stage_desc_pool_vaddr;
-
-	struct i915_vma *workqueue;
-	void *workqueue_vaddr;
-	spinlock_t wq_lock;
-
-	struct i915_vma *proc_desc;
-	void *proc_desc_vaddr;
 
 	/* Control params for fw initialization */
 	u32 params[GUC_CTL_MAX_DWORDS];
@@ -73,6 +65,11 @@ struct intel_guc {
 	/* To serialize the intel_guc_send actions */
 	struct mutex send_mutex;
 };
+
+static inline struct intel_guc *log_to_guc(struct intel_guc_log *log)
+{
+	return container_of(log, struct intel_guc, log);
+}
 
 static
 inline int intel_guc_send(struct intel_guc *guc, const u32 *action, u32 len)
@@ -130,7 +127,6 @@ int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len,
 			u32 *response_buf, u32 response_buf_size);
 int intel_guc_to_host_process_recv_msg(struct intel_guc *guc,
 				       const u32 *payload, u32 len);
-int intel_guc_sample_forcewake(struct intel_guc *guc);
 int intel_guc_auth_huc(struct intel_guc *guc, u32 rsa_offset);
 int intel_guc_suspend(struct intel_guc *guc);
 int intel_guc_resume(struct intel_guc *guc);
@@ -189,5 +185,7 @@ static inline void intel_guc_disable_msg(struct intel_guc *guc, u32 mask)
 
 int intel_guc_reset_engine(struct intel_guc *guc,
 			   struct intel_engine_cs *engine);
+
+void intel_guc_load_status(struct intel_guc *guc, struct drm_printer *p);
 
 #endif

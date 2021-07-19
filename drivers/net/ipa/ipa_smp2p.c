@@ -8,6 +8,7 @@
 #include <linux/device.h>
 #include <linux/interrupt.h>
 #include <linux/notifier.h>
+#include <linux/panic_notifier.h>
 #include <linux/soc/qcom/smem.h>
 #include <linux/soc/qcom/smem_state.h>
 
@@ -53,7 +54,7 @@
  * @clock_on:		Whether IPA clock is on
  * @notified:		Whether modem has been notified of clock state
  * @disabled:		Whether setup ready interrupt handling is disabled
- * @mutex mutex:	Motex protecting ready interrupt/shutdown interlock
+ * @mutex:		Mutex protecting ready-interrupt/shutdown interlock
  * @panic_notifier:	Panic notifier structure
 */
 struct ipa_smp2p {
@@ -176,11 +177,8 @@ static int ipa_smp2p_irq_init(struct ipa_smp2p *smp2p, const char *name,
 	int ret;
 
 	ret = platform_get_irq_byname(smp2p->ipa->pdev, name);
-	if (ret <= 0) {
-		dev_err(dev, "DT error %d getting \"%s\" IRQ property\n",
-			ret, name);
+	if (ret <= 0)
 		return ret ? : -EINVAL;
-	}
 	irq = ret;
 
 	ret = request_threaded_irq(irq, NULL, handler, 0, name, smp2p);

@@ -58,7 +58,7 @@ struct sdw_intel_acpi_info {
 	u32 link_mask;
 };
 
-struct sdw_intel_link_res;
+struct sdw_intel_link_dev;
 
 /* Intel clock-stop/pm_runtime quirk definitions */
 
@@ -109,12 +109,13 @@ struct sdw_intel_slave_id {
  * Controller
  * @num_slaves: total number of devices exposed across all enabled links
  * @handle: ACPI parent handle
- * @links: information for each link (controller-specific and kept
+ * @ldev: information for each link (controller-specific and kept
  * opaque here)
  * @ids: array of slave_id, representing Slaves exposed across all enabled
  * links
  * @link_list: list to handle interrupts across all links
  * @shim_lock: mutex to handle concurrent rmw access to shared SHIM registers.
+ * @shim_mask: flags to track initialization of SHIM shared registers
  */
 struct sdw_intel_ctx {
 	int count;
@@ -122,10 +123,11 @@ struct sdw_intel_ctx {
 	u32 link_mask;
 	int num_slaves;
 	acpi_handle handle;
-	struct sdw_intel_link_res *links;
+	struct sdw_intel_link_dev **ldev;
 	struct sdw_intel_slave_id *ids;
 	struct list_head link_list;
 	struct mutex shim_lock; /* lock for access to shared SHIM registers */
+	u32 shim_mask;
 };
 
 /**
@@ -184,5 +186,7 @@ void sdw_intel_exit(struct sdw_intel_ctx *ctx);
 void sdw_intel_enable_irq(void __iomem *mmio_base, bool enable);
 
 irqreturn_t sdw_intel_thread(int irq, void *dev_id);
+
+#define SDW_INTEL_QUIRK_MASK_BUS_DISABLE      BIT(1)
 
 #endif

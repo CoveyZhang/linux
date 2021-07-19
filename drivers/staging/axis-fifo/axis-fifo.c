@@ -337,11 +337,11 @@ static void reset_ip_core(struct axis_fifo *fifo)
 }
 
 /**
- * axis_fifo_write() - Read a packet from AXIS-FIFO character device.
- * @f Open file.
- * @buf User space buffer to read to.
- * @len User space buffer length.
- * @off Buffer offset.
+ * axis_fifo_read() - Read a packet from AXIS-FIFO character device.
+ * @f: Open file.
+ * @buf: User space buffer to read to.
+ * @len: User space buffer length.
+ * @off: Buffer offset.
  *
  * As defined by the device's documentation, we need to check the device's
  * occupancy before reading the length register and then the data. All these
@@ -383,8 +383,9 @@ static ssize_t axis_fifo_read(struct file *f, char __user *buf,
 		mutex_lock(&fifo->read_lock);
 		ret = wait_event_interruptible_timeout(fifo->read_queue,
 			ioread32(fifo->base_addr + XLLF_RDFO_OFFSET),
-			(read_timeout >= 0) ? msecs_to_jiffies(read_timeout) :
-				MAX_SCHEDULE_TIMEOUT);
+				 (read_timeout >= 0) ?
+				  msecs_to_jiffies(read_timeout) :
+				  MAX_SCHEDULE_TIMEOUT);
 
 		if (ret <= 0) {
 			if (ret == 0) {
@@ -459,10 +460,10 @@ end_unlock:
 
 /**
  * axis_fifo_write() - Write buffer to AXIS-FIFO character device.
- * @f Open file.
- * @buf User space buffer to write to the device.
- * @len User space buffer length.
- * @off Buffer offset.
+ * @f: Open file.
+ * @buf: User space buffer to write to the device.
+ * @len: User space buffer length.
+ * @off: Buffer offset.
  *
  * As defined by the device's documentation, we need to write to the device's
  * data buffer then to the device's packet length register atomically. Also,
@@ -525,9 +526,10 @@ static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
 		mutex_lock(&fifo->write_lock);
 		ret = wait_event_interruptible_timeout(fifo->write_queue,
 			ioread32(fifo->base_addr + XLLF_TDFV_OFFSET)
-				>= words_to_write,
-			(write_timeout >= 0) ? msecs_to_jiffies(write_timeout) :
-				MAX_SCHEDULE_TIMEOUT);
+				 >= words_to_write,
+				 (write_timeout >= 0) ?
+				  msecs_to_jiffies(write_timeout) :
+				  MAX_SCHEDULE_TIMEOUT);
 
 		if (ret <= 0) {
 			if (ret == 0) {
@@ -851,7 +853,6 @@ static int axis_fifo_probe(struct platform_device *pdev)
 	fifo->base_addr = devm_ioremap_resource(fifo->dt_device, r_mem);
 	if (IS_ERR(fifo->base_addr)) {
 		rc = PTR_ERR(fifo->base_addr);
-		dev_err(fifo->dt_device, "can't remap IO resource (%d)\n", rc);
 		goto err_initial;
 	}
 

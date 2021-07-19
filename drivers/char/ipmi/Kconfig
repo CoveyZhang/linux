@@ -14,7 +14,7 @@ menuconfig IPMI_HANDLER
 	  IPMI is a standard for managing sensors (temperature,
 	  voltage, etc.) in a system.
 
-	  See <file:Documentation/IPMI.txt> for more details on the driver.
+	  See <file:Documentation/driver-api/ipmi.rst> for more details on the driver.
 
 	  If unsure, say N.
 
@@ -123,6 +123,33 @@ config NPCM7XX_KCS_IPMI_BMC
 
 	  This support is also available as a module.  If so, the module
 	  will be called kcs_bmc_npcm7xx.
+
+config IPMI_KCS_BMC_CDEV_IPMI
+	depends on IPMI_KCS_BMC
+	tristate "IPMI character device interface for BMC KCS devices"
+	help
+	  Provides a BMC-side character device implementing IPMI
+	  semantics for KCS IPMI devices.
+
+	  Say YES if you wish to expose KCS devices on the BMC for IPMI
+	  purposes.
+
+	  This support is also available as a module. The module will be
+	  called kcs_bmc_cdev_ipmi.
+
+config IPMI_KCS_BMC_SERIO
+	depends on IPMI_KCS_BMC && SERIO
+	tristate "SerIO adaptor for BMC KCS devices"
+	help
+	  Adapts the BMC KCS device for the SerIO subsystem. This allows users
+	  to take advantage of userspace interfaces provided by SerIO where
+	  appropriate.
+
+	  Say YES if you wish to expose KCS devices on the BMC via SerIO
+	  interfaces.
+
+	  This support is also available as a module. The module will be
+	  called kcs_bmc_serio.
 
 config ASPEED_BT_IPMI_BMC
 	depends on ARCH_ASPEED || COMPILE_TEST

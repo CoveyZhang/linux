@@ -17,10 +17,6 @@
 #include "callchain.h"
 #include "util/synthetic-events.h"
 
-#if defined (__x86_64__) || defined (__i386__) || defined (__powerpc__)
-#include "arch-tests.h"
-#endif
-
 /* For bsearch. We try to unwind functions in shared object. */
 #include <stdlib.h>
 
@@ -37,6 +33,7 @@ static int init_live_machine(struct machine *machine)
 	union perf_event event;
 	pid_t pid = getpid();
 
+	memset(&event, 0, sizeof(event));
 	return perf_event__synthesize_mmap_events(NULL, &event, pid, pid,
 						  mmap_handler, machine, true);
 }

@@ -104,6 +104,10 @@ static const struct of_device_id st_accel_of_match[] = {
 		.compatible = "st,lis2de12",
 		.data = LIS2DE12_ACCEL_DEV_NAME,
 	},
+	{
+		.compatible = "st,lis2hh12",
+		.data = LIS2HH12_ACCEL_DEV_NAME,
+	},
 	{},
 };
 MODULE_DEVICE_TABLE(of, st_accel_of_match);
@@ -138,6 +142,7 @@ static const struct i2c_device_id st_accel_id_table[] = {
 	{ LIS2DW12_ACCEL_DEV_NAME },
 	{ LIS3DE_ACCEL_DEV_NAME },
 	{ LIS2DE12_ACCEL_DEV_NAME },
+	{ LIS2HH12_ACCEL_DEV_NAME },
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, st_accel_id_table);
@@ -169,16 +174,29 @@ static int st_accel_i2c_probe(struct i2c_client *client)
 	if (ret < 0)
 		return ret;
 
-	ret = st_accel_common_probe(indio_dev);
-	if (ret < 0)
+	ret = st_sensors_power_enable(indio_dev);
+	if (ret)
 		return ret;
 
+	ret = st_accel_common_probe(indio_dev);
+	if (ret < 0)
+		goto st_accel_power_off;
+
 	return 0;
+
+st_accel_power_off:
+	st_sensors_power_disable(indio_dev);
+
+	return ret;
 }
 
 static int st_accel_i2c_remove(struct i2c_client *client)
 {
-	st_accel_common_remove(i2c_get_clientdata(client));
+	struct iio_dev *indio_dev = i2c_get_clientdata(client);
+
+	st_sensors_power_disable(indio_dev);
+
+	st_accel_common_remove(indio_dev);
 
 	return 0;
 }

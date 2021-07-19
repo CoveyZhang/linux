@@ -5,7 +5,7 @@
 // Copyright (c) <2011-2014> HiSilicon Technologies Co., Ltd.
 //              http://www.hisilicon.com
 // Copyright (c) <2013-2014> Linaro Ltd.
-//              http://www.linaro.org
+//              https://www.linaro.org
 //
 // Author: Guodong Xu <guodong.xu@linaro.org>
 
@@ -87,7 +87,7 @@ static const unsigned int ldo_8_voltages[] = {
 };
 
 /* Ranges are sorted in ascending order. */
-static const struct regulator_linear_range ldo_audio_volt_range[] = {
+static const struct linear_range ldo_audio_volt_range[] = {
 	REGULATOR_LINEAR_RANGE(2800000, 0, 3, 50000),
 	REGULATOR_LINEAR_RANGE(3000000, 4, 7, 100000),
 };
@@ -195,7 +195,7 @@ static const struct regulator_ops hi6421_buck345_ops;
  * _id - LDO id name string
  * _match - of match name string
  * n_volt - number of votages available
- * volt_ranges - array of regulator_linear_range
+ * volt_ranges - array of linear_range
  * vstep - voltage increase in each linear step in uV
  * vreg - voltage select register
  * vmask - voltage select mask
@@ -386,7 +386,7 @@ static int hi6421_regulator_enable(struct regulator_dev *rdev)
 static unsigned int hi6421_regulator_ldo_get_mode(struct regulator_dev *rdev)
 {
 	struct hi6421_regulator_info *info = rdev_get_drvdata(rdev);
-	u32 reg_val;
+	unsigned int reg_val;
 
 	regmap_read(rdev->regmap, rdev->desc->enable_reg, &reg_val);
 	if (reg_val & info->mode_mask)
@@ -398,7 +398,7 @@ static unsigned int hi6421_regulator_ldo_get_mode(struct regulator_dev *rdev)
 static unsigned int hi6421_regulator_buck_get_mode(struct regulator_dev *rdev)
 {
 	struct hi6421_regulator_info *info = rdev_get_drvdata(rdev);
-	u32 reg_val;
+	unsigned int reg_val;
 
 	regmap_read(rdev->regmap, rdev->desc->enable_reg, &reg_val);
 	if (reg_val & info->mode_mask)
@@ -411,7 +411,7 @@ static int hi6421_regulator_ldo_set_mode(struct regulator_dev *rdev,
 						unsigned int mode)
 {
 	struct hi6421_regulator_info *info = rdev_get_drvdata(rdev);
-	u32 new_mode;
+	unsigned int new_mode;
 
 	switch (mode) {
 	case REGULATOR_MODE_NORMAL:
@@ -435,7 +435,7 @@ static int hi6421_regulator_buck_set_mode(struct regulator_dev *rdev,
 						unsigned int mode)
 {
 	struct hi6421_regulator_info *info = rdev_get_drvdata(rdev);
-	u32 new_mode;
+	unsigned int new_mode;
 
 	switch (mode) {
 	case REGULATOR_MODE_NORMAL:

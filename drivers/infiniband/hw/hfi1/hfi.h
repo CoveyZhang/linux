@@ -1,7 +1,8 @@
 #ifndef _HFI1_KERNEL_H
 #define _HFI1_KERNEL_H
 /*
- * Copyright(c) 2015-2018 Intel Corporation.
+ * Copyright(c) 2020 Cornelis Networks, Inc.
+ * Copyright(c) 2015-2020 Intel Corporation.
  *
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
@@ -68,7 +69,6 @@
 #include <rdma/ib_hdrs.h>
 #include <rdma/opa_addr.h>
 #include <linux/rhashtable.h>
-#include <linux/netdevice.h>
 #include <rdma/rdma_vt.h>
 
 #include "chip_registers.h"
@@ -233,6 +233,8 @@ struct hfi1_ctxtdata {
 	intr_handler fast_handler;
 	/** slow handler */
 	intr_handler slow_handler;
+	/* napi pointer assiociated with netdev */
+	struct napi_struct *napi;
 	/* verbs rx_stats per rcd */
 	struct hfi1_opcode_stats_perctx *opstats;
 	/* clear interrupt mask */
@@ -383,11 +385,11 @@ struct hfi1_packet {
 	u32 rhqoff;
 	u32 dlid;
 	u32 slid;
+	int numpkt;
 	u16 tlen;
 	s16 etail;
 	u16 pkey;
 	u8 hlen;
-	u8 numpkt;
 	u8 rsize;
 	u8 updegr;
 	u8 etype;
@@ -714,12 +716,6 @@ static inline void incr_cntr64(u64 *cntr)
 		(*cntr)++;
 }
 
-static inline void incr_cntr32(u32 *cntr)
-{
-	if (*cntr < (u32)-1LL)
-		(*cntr)++;
-}
-
 #define MAX_NAME_SIZE 64
 struct hfi1_msix_entry {
 	enum irq_type type;
@@ -776,10 +772,6 @@ struct hfi1_pportdata {
 	struct hfi1_ibport ibport_data;
 
 	struct hfi1_devdata *dd;
-	struct kobject pport_cc_kobj;
-	struct kobject sc2vl_kobj;
-	struct kobject sl2sc_kobj;
-	struct kobject vl2mtu_kobj;
 
 	/* PHY support */
 	struct qsfp_data qsfp_info;
@@ -861,7 +853,7 @@ struct hfi1_pportdata {
 	u8 rx_pol_inv;
 
 	u8 hw_pidx;     /* physical port index */
-	u8 port;        /* IB port number and index into dd->pports - 1 */
+	u32 port;        /* IB port number and index into dd->pports - 1 */
 	/* type of neighbor node */
 	u8 neighbor_type;
 	u8 neighbor_normal;
@@ -985,7 +977,7 @@ typedef void (*hfi1_make_req)(struct rvt_qp *qp,
 			      struct hfi1_pkt_state *ps,
 			      struct rvt_swqe *wqe);
 extern const rhf_rcv_function_ptr normal_rhf_rcv_functions[];
-
+extern const rhf_rcv_function_ptr netdev_rhf_rcv_functions[];
 
 /* return values for the RHF receive functions */
 #define RHF_RCV_CONTINUE  0	/* keep going */
@@ -1045,23 +1037,10 @@ struct hfi1_asic_data {
 #define NUM_MAP_ENTRIES	 256
 #define NUM_MAP_REGS      32
 
-/*
- * Number of VNIC contexts used. Ensure it is less than or equal to
- * max queues supported by VNIC (HFI1_VNIC_MAX_QUEUE).
- */
-#define HFI1_NUM_VNIC_CTXT   8
-
-/* Number of VNIC RSM entries */
-#define NUM_VNIC_MAP_ENTRIES 8
-
 /* Virtual NIC information */
 struct hfi1_vnic_data {
-	struct hfi1_ctxtdata *ctxt[HFI1_NUM_VNIC_CTXT];
 	struct kmem_cache *txreq_cache;
-	struct xarray vesws;
 	u8 num_vports;
-	u8 rmt_start;
-	u8 num_ctxt;
 };
 
 struct hfi1_vnic_vport_info;
@@ -1076,6 +1055,7 @@ struct sdma_vl_map;
 #define SERIAL_MAX 16 /* length of the serial number */
 
 typedef int (*send_routine)(struct rvt_qp *, struct hfi1_pkt_state *, u64);
+struct hfi1_netdev_rx;
 struct hfi1_devdata {
 	struct hfi1_ibdev verbs_dev;     /* must be first */
 	/* pointers to related structs for this device */
@@ -1167,8 +1147,8 @@ struct hfi1_devdata {
 	u64 z_send_schedule;
 
 	u64 __percpu *send_schedule;
-	/* number of reserved contexts for VNIC usage */
-	u16 num_vnic_contexts;
+	/* number of reserved contexts for netdev usage */
+	u16 num_netdev_contexts;
 	/* number of receive contexts in use by the driver */
 	u32 num_rcv_contexts;
 	/* number of pio send contexts in use by the driver */
@@ -1417,12 +1397,13 @@ struct hfi1_devdata {
 	struct hfi1_vnic_data vnic;
 	/* Lock to protect IRQ SRC register access */
 	spinlock_t irq_src_lock;
-};
+	int vnic_num_vports;
+	struct hfi1_netdev_rx *netdev_rx;
+	struct hfi1_affinity_node *affinity_entry;
 
-static inline bool hfi1_vnic_is_rsm_full(struct hfi1_devdata *dd, int spare)
-{
-	return (dd->vnic.rmt_start + spare) > NUM_MAP_ENTRIES;
-}
+	/* Keeps track of IPoIB RSM rule users */
+	atomic_t ipoib_rsm_usr_num;
+};
 
 /* 8051 firmware version helper */
 #define dc8051_ver(a, b, c) ((a) << 16 | (b) << 8 | (c))
@@ -1462,7 +1443,6 @@ struct hfi1_filedata {
 	u32 invalid_tid_idx;
 	/* protect invalid_tids array and invalid_tid_idx */
 	spinlock_t invalid_lock;
-	struct mm_struct *mm;
 };
 
 extern struct xarray hfi1_dev_table;
@@ -1490,7 +1470,7 @@ int hfi1_create_ctxtdata(struct hfi1_pportdata *ppd, int numa,
 			 struct hfi1_ctxtdata **rcd);
 void hfi1_free_ctxt(struct hfi1_ctxtdata *rcd);
 void hfi1_init_pportdata(struct pci_dev *pdev, struct hfi1_pportdata *ppd,
-			 struct hfi1_devdata *dd, u8 hw_pidx, u8 port);
+			 struct hfi1_devdata *dd, u8 hw_pidx, u32 port);
 void hfi1_free_ctxtdata(struct hfi1_devdata *dd, struct hfi1_ctxtdata *rcd);
 int hfi1_rcd_put(struct hfi1_ctxtdata *rcd);
 int hfi1_rcd_get(struct hfi1_ctxtdata *rcd);
@@ -1500,6 +1480,8 @@ struct hfi1_ctxtdata *hfi1_rcd_get_by_index(struct hfi1_devdata *dd, u16 ctxt);
 int handle_receive_interrupt(struct hfi1_ctxtdata *rcd, int thread);
 int handle_receive_interrupt_nodma_rtail(struct hfi1_ctxtdata *rcd, int thread);
 int handle_receive_interrupt_dma_rtail(struct hfi1_ctxtdata *rcd, int thread);
+int handle_receive_interrupt_napi_fp(struct hfi1_ctxtdata *rcd, int budget);
+int handle_receive_interrupt_napi_sp(struct hfi1_ctxtdata *rcd, int budget);
 void set_all_slowpath(struct hfi1_devdata *dd);
 
 extern const struct pci_device_id hfi1_pci_tbl[];
@@ -1778,7 +1760,7 @@ static inline void pause_for_credit_return(struct hfi1_devdata *dd)
 }
 
 /**
- * sc_to_vlt() reverse lookup sc to vl
+ * sc_to_vlt() - reverse lookup sc to vl
  * @dd - devdata
  * @sc5 - 5 bit sc
  */
@@ -1984,10 +1966,10 @@ static inline struct hfi1_ibdev *dev_from_rdi(struct rvt_dev_info *rdi)
 	return container_of(rdi, struct hfi1_ibdev, rdi);
 }
 
-static inline struct hfi1_ibport *to_iport(struct ib_device *ibdev, u8 port)
+static inline struct hfi1_ibport *to_iport(struct ib_device *ibdev, u32 port)
 {
 	struct hfi1_devdata *dd = dd_from_ibdev(ibdev);
-	unsigned pidx = port - 1; /* IB number port from 1, hdw from 0 */
+	u32 pidx = port - 1; /* IB number port from 1, hdw from 0 */
 
 	WARN_ON(pidx >= dd->num_pports);
 	return &dd->pport[pidx].ibport_data;
@@ -2202,12 +2184,11 @@ static inline bool hfi1_packet_present(struct hfi1_ctxtdata *rcd)
 
 extern const char ib_hfi1_version[];
 extern const struct attribute_group ib_hfi1_attr_group;
+extern const struct attribute_group *hfi1_attr_port_groups[];
 
 int hfi1_device_create(struct hfi1_devdata *dd);
 void hfi1_device_remove(struct hfi1_devdata *dd);
 
-int hfi1_create_port_files(struct ib_device *ibdev, u8 port_num,
-			   struct kobject *kobj);
 int hfi1_verbs_register_sysfs(struct hfi1_devdata *dd);
 void hfi1_verbs_unregister_sysfs(struct hfi1_devdata *dd);
 /* Hook for sysfs read of QSFP */
@@ -2250,7 +2231,6 @@ extern int num_user_contexts;
 extern unsigned long n_krcvqs;
 extern uint krcvqs[];
 extern int krcvqsset;
-extern uint kdeth_qp;
 extern uint loopback;
 extern uint quick_linkup;
 extern uint rcv_intr_timeout;

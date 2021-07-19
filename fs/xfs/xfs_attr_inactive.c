@@ -15,10 +15,10 @@
 #include "xfs_da_format.h"
 #include "xfs_da_btree.h"
 #include "xfs_inode.h"
+#include "xfs_attr.h"
 #include "xfs_attr_remote.h"
 #include "xfs_trans.h"
 #include "xfs_bmap.h"
-#include "xfs_attr.h"
 #include "xfs_attr_leaf.h"
 #include "xfs_quota.h"
 #include "xfs_dir2.h"
@@ -367,7 +367,7 @@ xfs_attr_inactive(
 	 * removal below.
 	 */
 	if (xfs_inode_hasattr(dp) &&
-	    dp->i_d.di_aformat != XFS_DINODE_FMT_LOCAL) {
+	    dp->i_afp->if_format != XFS_DINODE_FMT_LOCAL) {
 		error = xfs_attr3_root_inactive(&trans, dp);
 		if (error)
 			goto out_cancel;
@@ -388,8 +388,11 @@ out_cancel:
 	xfs_trans_cancel(trans);
 out_destroy_fork:
 	/* kill the in-core attr fork before we drop the inode lock */
-	if (dp->i_afp)
-		xfs_idestroy_fork(dp, XFS_ATTR_FORK);
+	if (dp->i_afp) {
+		xfs_idestroy_fork(dp->i_afp);
+		kmem_cache_free(xfs_ifork_zone, dp->i_afp);
+		dp->i_afp = NULL;
+	}
 	if (lock_mode)
 		xfs_iunlock(dp, lock_mode);
 	return error;

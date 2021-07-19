@@ -16,8 +16,6 @@
 #include <linux/debug_locks.h>
 #include <asm/cio.h>
 #include <asm/setup.h>
-#include <asm/pgtable.h>
-#include <asm/pgalloc.h>
 #include <asm/smp.h>
 #include <asm/ipl.h>
 #include <asm/diag.h>
@@ -134,7 +132,8 @@ static bool kdump_csum_valid(struct kimage *image)
 	int rc;
 
 	preempt_disable();
-	rc = CALL_ON_STACK(do_start_kdump, S390_lowcore.nodat_stack, 1, image);
+	rc = call_on_stack(1, S390_lowcore.nodat_stack, unsigned long, do_start_kdump,
+			   unsigned long, (unsigned long)image);
 	preempt_enable();
 	return rc == 0;
 #else
